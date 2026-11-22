@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PlotPotion · Brew a plot, reveal a movie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Limelight&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#fbf6ee; --cream2:#f4ecdf; --ink:#2b2433; --muted:#7d7286;
+    --red:#d9534a; --gold:#f2c14e; --purple:#8b5cf6; --teal:#2bb7a3; --pink:#f472b6;
+    --strip:#2b2433;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    min-height:100vh;color:var(--ink);font-family:"Nunito",system-ui,sans-serif;overflow-x:hidden;
+    background:
+      radial-gradient(circle at 1px 1px,#e9dfcf 1px,transparent 1.4px) 0 0/22px 22px,
+      linear-gradient(180deg,var(--cream),var(--cream2));
+  }
+
+  /* ---------- film strips (top & bottom) ---------- */
+  .strip{position:fixed;left:0;right:0;height:34px;z-index:3;pointer-events:none;
+    background:
+      radial-gradient(circle,var(--cream) 0 5px,transparent 5.5px) 0 50%/28px 18px repeat-x,
+      var(--strip);
+    animation:roll 14s linear infinite}
+  .strip.top{top:0}.strip.bottom{bottom:0;animation-direction:reverse}
+  @keyframes roll{to{background-position:280px 50%,0 0}}
+
+  /* ---------- projector spotlight that follows the mouse ---------- */
+  .spot{position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(380px 380px at var(--mx,50%) var(--my,30%),#fff3cf 0%,#fff3cf55 35%,transparent 70%);
+    transition:background .08s}
+
+
+  body{padding-top:64px}  /* fixed gap under the top film strip (not affected by auto-fit) */
+  main{position:relative;z-index:2;max-width:960px;margin:0 auto;padding:0 20px 60px}
+
+  /* ---------- marquee title ---------- */
+  .marquee{width:max-content;max-width:100%;margin:0 auto;padding:16px 34px 12px;border-radius:18px;background:var(--ink);
+           box-shadow:0 14px 34px #2b243333;position:relative;text-align:center}
+  .bulbs{display:flex;justify-content:space-between;gap:10px}
+  .bulbs i{width:10px;height:10px;border-radius:50%;background:#6b5d4a;animation:chase 1.6s infinite}
+  .marquee:hover .bulbs i{animation-duration:.6s}
+  @keyframes chase{0%,60%,100%{background:#6b5d4a;box-shadow:none}20%{background:#ffe29a;box-shadow:0 0 10px #ffd35a,0 0 20px #ffcf4088}}
+  h1{font-family:"Limelight","Georgia",serif;font-weight:400;font-size:clamp(40px,7vw,66px);margin:6px 0 2px;letter-spacing:1px;color:#fff6dd;
+     text-shadow:0 0 18px #ffd35a66}
+  h1 .p{color:var(--gold)}
+  .tagline{text-align:center;font-style:italic;color:var(--muted);font-size:18px;margin:10px 0 0}
+
+  /* ---------- stage ---------- */
+  .stage{position:relative;height:430px;transition:height .6s ease;margin:4px auto 0;max-width:620px}
+  .flask{position:absolute;left:50%;bottom:6px;width:215px;transform:translateX(-50%);transform-origin:50% 100%}
+  .flask svg{width:100%;display:block;overflow:visible}
+
+  /* small "your memory" bottle */
+  .mem{position:absolute;left:calc(50% - 250px);bottom:18px;width:84px;text-align:center;transform-origin:50% 30%;
+       transition:transform .8s cubic-bezier(.5,-0.2,.4,1.3)}
+  .mem svg{width:100%;display:block;overflow:visible;animation:bob 2.6s ease-in-out infinite}
+  .mem.data svg{animation-delay:-1.3s}
+  .flask svg{animation:bob 3.2s ease-in-out infinite;animation-delay:-.6s}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(-1.5deg)}50%{transform:translateY(-10px) rotate(1.5deg)}}
+  .mem .label{font-weight:800;font-size:13px;color:var(--muted);margin-top:4px;transition:opacity .3s}
+  .mem.data{left:auto;right:calc(50% - 250px)}
+  .stage.pouring .mem{transform:translate(150px,-262px) rotate(118deg)}
+  .stage.pouring .mem.data{transform:translate(-150px,-262px) rotate(-118deg)}
+  .stage.pouring .mem .label{opacity:0}
+  .mem.gulp svg{animation:gulp .25s ease, bob 2.6s ease-in-out infinite}
+  @keyframes gulp{50%{transform:scale(1.1,.92)}}
+  .stream{position:absolute;left:calc(50% - 9px);bottom:300px;width:7px;height:0;border-radius:6px;opacity:0;
+          background:linear-gradient(#8b5cf6,#c4b5fd);transition:height .35s ease,opacity .2s}
+  .stream.s2{left:calc(50% + 2px);background:linear-gradient(#2bb7a3,#a7f3d0)}
+  .stage.pouring.flowing .stream{height:64px;opacity:1}
+  
+  .reveal{position:absolute;left:0;right:0;top:30px;text-align:center;pointer-events:none;opacity:0;filter:blur(14px);transform:translateY(20px) scale(.9);
+          transition:opacity .9s ease, filter 1.1s ease, transform 1.1s cubic-bezier(.2,1.4,.4,1)}
+  .reveal.show{opacity:1;filter:blur(0);transform:none}
+  .stage.showing{height:560px}
+  .reveal .k{font-size:12px;letter-spacing:4px;font-weight:800;color:var(--muted);text-transform:uppercase}
+  .reveal .t{font-family:"Limelight",Georgia,serif;font-size:clamp(30px,5.4vw,50px);line-height:1.05;color:var(--ink);margin-top:4px;
+             text-shadow:0 2px 0 #fff,0 0 22px #fff}
+  .status{position:absolute;left:0;right:0;top:8px;text-align:center;font-family:"Limelight",Georgia,serif;font-size:26px;color:var(--ink);
+          opacity:0;transform:translateY(8px);transition:opacity .4s,transform .4s;pointer-events:none}
+  .status.on{opacity:1;transform:none}
+  .status i{font-style:normal;animation:dot 1.2s infinite}
+  .status i:nth-child(3){animation-delay:.2s}.status i:nth-child(4){animation-delay:.4s}
+  @keyframes dot{0%,60%,100%{opacity:.15}30%{opacity:1}}
+  .reveal .tip{margin-top:10px;font-weight:700;font-size:15px;color:var(--muted);line-height:1.45;opacity:0;transform:translateY(6px);transition:all .6s .7s ease}
+  .reveal.show .tip{opacity:1;transform:none}
+  .reveal .y{font-weight:800;color:var(--red);margin-top:4px}
+
+  .flyword{position:fixed;z-index:5;font-weight:800;font-size:14px;color:var(--purple);background:#fff;border:2px solid var(--purple);
+           padding:2px 10px;border-radius:999px;pointer-events:none;transition:transform .9s cubic-bezier(.5,-0.3,.6,1),opacity .9s}
+  canvas#fx{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:4}
+
+  /* ---------- input ---------- */
+  .brewbox{margin:8px auto 0;max-width:680px;background:#fff;border:2px solid var(--ink);border-radius:20px;padding:12px;
+           box-shadow:6px 6px 0 var(--ink)}
+  .row{display:flex;gap:10px}
+  textarea{flex:1;resize:none;border:none;outline:none;font:inherit;font-size:18px;color:var(--ink);min-height:54px;align-self:center;padding:6px 8px;background:transparent}
+  textarea::placeholder{color:#b5aab9}
+  button.go{border:none;cursor:pointer;font:800 17px "Nunito",system-ui,sans-serif;color:var(--ink);padding:0 24px;border-radius:14px;background:var(--gold);
+            border:2px solid var(--ink);box-shadow:3px 3px 0 var(--ink);transition:transform .12s,box-shadow .12s}
+  button.go:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 var(--ink)}
+  button.go:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+  button.go:disabled{opacity:.6;cursor:wait}
+
+  /* ---------- results ---------- */
+  .results{max-width:680px;margin:28px auto 0}
+  .plot{text-align:center;color:#5b5163;line-height:1.55;margin:0 auto 22px;max-width:580px}
+  .list{display:grid;gap:12px}
+  .ticket{display:grid;grid-template-columns:86px 1fr auto;align-items:center;background:#fff;border:2px solid var(--ink);border-radius:14px;
+          position:relative;opacity:0;transform:translateY(14px) rotate(-1deg);transition:all .45s ease;overflow:hidden}
+  .ticket.show{opacity:1;transform:none}
+  .ticket:nth-child(1){background:#fff8e3}
+  .ticket::before,.ticket::after{content:"";position:absolute;left:78px;width:16px;height:16px;border-radius:50%;background:var(--cream);border:2px solid var(--ink)}
+  .ticket::before{top:-9px}.ticket::after{bottom:-9px}
+  .stub{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:2px dashed var(--ink);padding:10px 0;
+        background:var(--red);color:#fff}
+  .ticket:nth-child(1) .stub{background:var(--gold);color:var(--ink)}
+  .stub small{font-size:10px;letter-spacing:2px;font-weight:800;opacity:.85}
+  .stub b{font-family:"Limelight",Georgia,serif;font-size:26px;font-weight:400}
+  .tname{padding:12px 16px;font-weight:800;font-size:16px}
+  .tname small{display:block;color:var(--muted);font-weight:700;font-size:12px;letter-spacing:1px}
+  .bars{display:grid;gap:4px;width:160px;padding-right:16px}
+  .bar{display:grid;grid-template-columns:54px 1fr;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--muted)}
+  .bar span{height:7px;border-radius:5px;background:#efe8dc;overflow:hidden;position:relative}
+  .bar span b{position:absolute;inset:0 auto 0 0;border-radius:5px;width:0;transition:width .8s .2s ease}
+  .bar.words b{background:var(--purple)} .bar.meaning b{background:var(--teal)} .bar.judge b{background:var(--gold)}
+  .bar.off{opacity:.35}
+  .meta{text-align:center;color:var(--muted);font-size:13px;margin-top:16px}
+  .demo{display:none;text-align:center;font-size:12px;color:#b07a2a;margin-top:10px}
+  footer{text-align:center;color:#a99eae;font-size:12px;margin-top:46px}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  @media (max-width:700px){
+    body{padding-top:56px}main{padding:0 12px 50px}
+    .marquee{padding:12px 18px 8px}.bulbs{gap:6px}.bulbs i{width:7px;height:7px}
+    h1{font-size:40px}.tagline{font-size:15px}
+    .flask{width:180px}
+    .mem{width:64px;left:2%}.mem.data{right:2%}
+    .stage.pouring .mem{transform:translate(calc(50vw - 110px),-215px) rotate(118deg)}
+    .stage.pouring .mem.data{transform:translate(calc(-50vw + 110px),-215px) rotate(-118deg)}
+    .stream{bottom:252px}
+    .reveal .t{font-size:30px}.reveal .tip{font-size:14px}
+    textarea{font-size:16px}button.go{padding:0 16px;font-size:16px}
+    .row{gap:8px}
+  }
+  @media (max-width:560px){.bars{display:none}.ticket{grid-template-columns:70px 1fr}.ticket::before,.ticket::after{left:62px}}
+</style>
+</head>
+<body>
+<div class="spot" id="spot"></div>
+<div class="strip top"></div><div class="strip bottom"></div>
+<canvas id="fx"></canvas>
+
+<main>
+  <div class="marquee">
+    <div class="bulbs" id="bulbsTop"></div>
+    <h1>Plot<span class="p">Potion</span></h1>
+    <div class="bulbs" id="bulbsBottom"></div>
+  </div>
+  <p class="tagline">Brew a plot, reveal a movie</p>
+
+  <!-- ===== stage: the flask + popcorn reveal ===== -->
+  <div class="stage" id="stage">
+    <div class="reveal" id="reveal">
+      <div class="k">✦ now showing ✦</div>
+      <div class="t" id="revealTitle"></div>
+      <div class="y" id="revealYear"></div>
+      <div class="tip" id="tip">Go grab popcorn 🍿…<br>or someone to watch it with 😉</div>
+    </div>
+
+    <div class="mem" id="mem">
+      <svg viewBox="0 0 70 120" aria-hidden="true">
+        <defs><clipPath id="memInside"><path d="M25 10h20v34l20 58a10 10 0 0 1-9 14H14a10 10 0 0 1-9-14l20-58z"/></clipPath></defs>
+        <g clip-path="url(#memInside)"><rect id="memLiquid" x="0" y="120" width="70" height="120" fill="#a78bfa"/></g>
+        <path d="M25 10h20v34l20 58a10 10 0 0 1-9 14H14a10 10 0 0 1-9-14l20-58z" fill="#ffffff55" stroke="#2b2433" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M18 78l-6 18" stroke="#ffffffcc" stroke-width="4" stroke-linecap="round"/>
+        <rect x="21" y="4" width="28" height="8" rx="3" fill="#fff" stroke="#2b2433" stroke-width="2.5"/>
+      </svg>
+      <div class="label">your memory</div>
+    </div>
+    <div class="mem data" id="dataBottle">
+      <svg viewBox="0 0 70 120" aria-hidden="true">
+        <defs><clipPath id="dataInside"><path d="M25 10h20v34l20 58a10 10 0 0 1-9 14H14a10 10 0 0 1-9-14l20-58z"/></clipPath></defs>
+        <g clip-path="url(#dataInside)"><rect id="dataLiquid" x="0" y="48" width="70" height="120" fill="#5eead4"/>
+          <g id="dataBubbles"><circle cx="22" r="2.5" fill="#ffffffcc"><animate attributeName="cy" values="112;52" dur="1.8s" begin="0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;0" dur="1.8s" begin="0s" repeatCount="indefinite"/></circle><circle cx="35" r="3.5" fill="#ffffffcc"><animate attributeName="cy" values="112;52" dur="2.2s" begin="0.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;0" dur="2.2s" begin="0.5s" repeatCount="indefinite"/></circle><circle cx="47" r="2" fill="#ffffffcc"><animate attributeName="cy" values="112;52" dur="1.6s" begin="0.9s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;0" dur="1.6s" begin="0.9s" repeatCount="indefinite"/></circle><circle cx="29" r="2" fill="#ffffffcc"><animate attributeName="cy" values="112;52" dur="2.0s" begin="1.3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;0" dur="2.0s" begin="1.3s" repeatCount="indefinite"/></circle><circle cx="42" r="3" fill="#ffffffcc"><animate attributeName="cy" values="112;52" dur="2.4s" begin="0.2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;0" dur="2.4s" begin="0.2s" repeatCount="indefinite"/></circle><circle cx="33" r="1.6" fill="#ffffffcc"><animate attributeName="cy" values="112;52" dur="1.4s" begin="1.0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;0" dur="1.4s" begin="1.0s" repeatCount="indefinite"/></circle></g></g>
+        <path d="M25 10h20v34l20 58a10 10 0 0 1-9 14H14a10 10 0 0 1-9-14l20-58z" fill="#ffffff55" stroke="#2b2433" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M52 78l6 18" stroke="#ffffffcc" stroke-width="4" stroke-linecap="round"/>
+        <rect x="21" y="4" width="28" height="8" rx="3" fill="#fff" stroke="#2b2433" stroke-width="2.5"/>
+      </svg>
+      <div class="label">popcorn potion</div>
+    </div>
+    <div class="stream" id="stream"></div><div class="stream s2"></div>
+
+    <div class="status" id="status"><span id="statusText">The potion is brewing</span><i>.</i><i>.</i><i>.</i></div>
+
+    <div class="flask" id="flask">
+      <svg viewBox="0 0 220 300" aria-hidden="true">
+        <defs>
+          <clipPath id="inside"><path d="M88 24h44v92a88 88 0 1 1-44 0z"/></clipPath>
+          <linearGradient id="liq" x1="0" y1="0" x2="1" y2="1">
+            <stop id="s1" offset="0" stop-color="#c4b5fd"/><stop id="s2" offset="1" stop-color="#a7f3d0"/>
+          </linearGradient>
+        </defs>
+        <ellipse cx="110" cy="292" rx="78" ry="7" fill="#2b243318"/>
+        <!-- liquid -->
+        <g clip-path="url(#inside)">
+          <path id="wave" fill="url(#liq)"/>
+          <g id="inBubbles"></g>
+        </g>
+        <!-- glass -->
+        <path d="M88 24h44v92a88 88 0 1 1-44 0z" fill="#ffffff55" stroke="#2b2433" stroke-width="3.5" stroke-linejoin="round"/>
+        <path d="M60 150a62 62 0 0 0-10 60" fill="none" stroke="#ffffffcc" stroke-width="7" stroke-linecap="round"/>
+        <path d="M118 40v58" stroke="#ffffffaa" stroke-width="5" stroke-linecap="round"/>
+        <!-- rim + cork -->
+        <rect x="82" y="18" width="56" height="10" rx="4" fill="#fff" stroke="#2b2433" stroke-width="3"/>
+        <!-- ticket tag on a string -->
+        <path d="M134 26c22 6 30 18 34 34" fill="none" stroke="#2b2433" stroke-width="1.8"/>
+        <g transform="translate(146 56) rotate(12)">
+          <rect x="0" y="0" width="86" height="30" rx="5" fill="#f2c14e" stroke="#2b2433" stroke-width="2"/>
+          <circle cx="0" cy="15" r="5" fill="#fbf6ee" stroke="#2b2433" stroke-width="2"/>
+          <text id="tagText" x="46" y="19.5" text-anchor="middle" font-family="Nunito,Arial,sans-serif" font-weight="800" font-size="10" fill="#2b2433">MOVIE MAGIC</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ===== input ===== -->
+  <div class="brewbox">
+    <div class="row">
+      <textarea id="q" placeholder="Pour in what you remember… e.g. an animal king killed by his brother"></textarea>
+      <button class="go" id="go">Brew ✨</button>
+    </div>
+  </div>
+
+  <!-- ===== results ===== -->
+  <section class="results" id="results" hidden>
+    <p class="plot" id="plot"></p>
+    <div class="list" id="list"></div>
+    <div class="meta" id="meta"></div>
+  </section>
+
+  <footer>PlotPotion · BM25 + meaning search + reranker · NLP course project, THWS</footer>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const stage=$("stage"), q=$("q"), go=$("go");
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- fit everything on one screen ---------- */
+function fit(){
+  const m=document.querySelector("main"); m.style.zoom=1;
+  const need=document.querySelector(".brewbox").getBoundingClientRect().bottom+window.scrollY+46; // + bottom film strip
+  const phone=innerWidth<700;
+  const room=phone?.96:.8;                       // laptops: leave some calm space below
+  const top=parseFloat(getComputedStyle(document.body).paddingTop);
+  const z=Math.max(.45,Math.min(1,(room*innerHeight-top)/(need-top)));
+  m.style.zoom=z;
+}
+if(innerWidth<700) q.placeholder="What do you remember about the movie?";
+addEventListener("resize",fit); addEventListener("load",fit); document.fonts&&document.fonts.ready.then(fit); fit();
+
+/* ---------- marquee bulbs ---------- */
+["bulbsTop","bulbsBottom"].forEach(id=>{for(let i=0;i<16;i++){const b=document.createElement("i");b.style.animationDelay=(i*0.1)+"s";$(id).appendChild(b)}});
+
+/* ---------- spotlight follows mouse ---------- */
+addEventListener("mousemove",e=>{$("spot").style.setProperty("--mx",e.clientX+"px");$("spot").style.setProperty("--my",e.clientY+"px")});
+
+
+q.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();brew()}});
+go.onclick=brew;
+
+/* ---------- liquid: wave + bubbles inside the flask ---------- */
+let memLevel=120, memShown=120, dataLevel=48, dataShown=48, flaskS=1, brewingNow=false, level=210, targetLevel=210, waveAmp=3, t=0, bubbles=[], stirring=false;
+const NS="http://www.w3.org/2000/svg";
+function liquidLoop(){
+  t+=stirring?.22:.05; level+=(targetLevel-level)*.05;
+  let d=`M0 ${level}`;for(let x=0;x<=220;x+=10)d+=` L${x} ${level+Math.sin(x/22+t)*waveAmp}`;d+=" L220 300 L0 300Z";
+  $("wave").setAttribute("d",d);
+  memShown+=(memLevel-memShown)*.12; $("memLiquid").setAttribute("y",memShown);
+  dataShown+=(dataLevel-dataShown)*.08; $("dataLiquid").setAttribute("y",dataShown);
+  const target=brewingNow?1.16+Math.sin(t*1.25)*.12:1;      // swells big, shrinks, swells…
+  flaskS+=(target-flaskS)*.22; $("flask").style.transform=`translateX(-50%) scale(${flaskS.toFixed(3)})`;
+  if(stirring&&Math.random()<.5) bubbles.push({x:60+Math.random()*100,y:285,r:2+Math.random()*5,v:1+Math.random()*2});
+  else if(Math.random()<.04) bubbles.push({x:70+Math.random()*80,y:285,r:2+Math.random()*3,v:.6+Math.random()});
+  bubbles.forEach(b=>b.y-=b.v); bubbles=bubbles.filter(b=>b.y>level);
+  $("inBubbles").innerHTML=bubbles.map(b=>`<circle cx="${b.x}" cy="${b.y}" r="${b.r}" fill="#ffffffaa" stroke="#ffffff" stroke-width="1"/>`).join("");
+  requestAnimationFrame(liquidLoop);
+}
+liquidLoop();
+
+const MIX=[["#c4b5fd","#a7f3d0"],["#a78bfa","#5eead4"],["#f472b6","#8b5cf6"],["#2bb7a3","#f472b6"],["#f2c14e","#f472b6"],["#8b5cf6","#2bb7a3"]];
+function setColors([a,b]){$("s1").setAttribute("stop-color",a);$("s2").setAttribute("stop-color",b)}
+
+/* ---------- words drop into the flask ---------- */
+function dropWords(text){
+  const from=q.getBoundingClientRect(), f=$("mem").getBoundingClientRect();
+  const tx=f.left+f.width/2, ty=f.top+8;
+  text.split(/\s+/).filter(Boolean).slice(0,8).forEach((w,i)=>{
+    const s=document.createElement("div");s.className="flyword";s.textContent=w;
+    const sx=from.left+20+Math.random()*(from.width-140), sy=from.top+8;
+    s.style.left=sx+"px";s.style.top=sy+"px";document.body.appendChild(s);
+    setTimeout(()=>{s.style.transform=`translate(${tx-sx-20}px,${ty-sy}px) scale(.25) rotate(${(Math.random()-.5)*120}deg)`;s.style.opacity="0"},60+i*110);
+    setTimeout(()=>{s.remove();memLevel=Math.max(40,memLevel-12);const m=$("mem");m.classList.remove("gulp");void m.offsetWidth;m.classList.add("gulp")},950+i*110);
+  });
+}
+
+/* ---------- popcorn popping (canvas) ---------- */
+const cv=$("fx"),ctx=cv.getContext("2d");let corn=[],cornRunning=false;
+function resize(){cv.width=innerWidth*devicePixelRatio;cv.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}
+addEventListener("resize",resize);resize();
+function makeKernel(){ // a few fluffy blobs + a little golden husk
+  const blobs=[];const n=4+(Math.random()*3|0);
+  for(let i=0;i<n;i++){const a=i/n*Math.PI*2+Math.random()*.6;blobs.push([Math.cos(a)*5.5,Math.sin(a)*5.5-1,5.5+Math.random()*3])}
+  blobs.push([0,-1,7]);return blobs}
+function drawKernel(k){
+  ctx.save();ctx.translate(k.x,k.y);ctx.rotate(k.rot);const s=k.size*Math.min(1,.25+k.age/16);ctx.scale(s,s);ctx.globalAlpha=Math.max(0,Math.min(1,k.life));
+  ctx.fillStyle="#c9862a";ctx.beginPath();ctx.ellipse(0,7,5,3.2,0,0,7);ctx.fill();               // husk
+  k.blobs.forEach(([x,y,r],i)=>{ctx.fillStyle=i%3===0?"#fff1c7":"#fffdf6";ctx.strokeStyle="#b98b3e";ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();ctx.stroke()});
+  ctx.fillStyle="#f2c14e88";ctx.beginPath();ctx.arc(2,3,3.2,0,7);ctx.fill();                       // buttery spot
+  ctx.fillStyle="#ffffff";ctx.beginPath();ctx.arc(-3,-4,2.4,0,7);ctx.fill();                       // shine
+  ctx.restore()}
+function popcorn(x,y,n=46){
+  if(reduce)return;
+  const floor=$("flask").getBoundingClientRect().bottom;
+  for(let i=0;i<n;i++){
+    const delay=Math.pow(Math.random(),1.6)*1300;          // pops come fast, then slow down, like real popcorn
+    setTimeout(()=>{
+      corn.push({x:x+(Math.random()-.5)*8,y:y+18,vx:(Math.random()-.5)*7,vy:-(8+Math.random()*9),rot:Math.random()*6,vr:(Math.random()-.5)*.3,
+                 size:1.1+Math.random()*.7,blobs:makeKernel(),age:0,life:1.6,floor:floor+Math.random()*30,bounces:0});
+      flaskS+=.035;
+      if(!cornRunning){cornRunning=true;requestAnimationFrame(cornLoop)}   // (re)start the animation when a kernel pops
+    },delay);
+  }
+}
+function cornLoop(){
+  ctx.clearRect(0,0,innerWidth,innerHeight);
+  corn.forEach(k=>{k.age++;k.vy+=.38;k.x+=k.vx;k.y+=k.vy;k.rot+=k.vr;
+    if(k.y>k.floor&&k.vy>0){k.y=k.floor;k.vy*=-.42;k.vx*=.7;k.vr*=.6;k.bounces++}
+    if(k.bounces>1)k.life-=.012;drawKernel(k)});
+  corn=corn.filter(k=>k.life>0&&k.y<innerHeight+60);
+  if(corn.length)requestAnimationFrame(cornLoop);else{cornRunning=false;ctx.clearRect(0,0,innerWidth,innerHeight)}
+}
+
+/* ---------- the brew ---------- */
+async function fetchResults(query){
+  const ourServer=["localhost","127.0.0.1"].includes(location.hostname)||location.hostname.endsWith(".hf.space");
+  if(location.protocol==="file:") return demoResults(query);   // preview only
+  try{const r=await fetch(`/search?q=${encodeURIComponent(query)}&k=5`);if(!r.ok)throw 0;return await r.json()}
+  catch{return ourServer?{results:[],error:true}:demoResults(query)}
+}
+async function brew(){
+  const text=q.value.trim();if(!text){q.focus();return}
+  go.disabled=true;$("results").hidden=true;$("reveal").classList.remove("show");stage.classList.remove("showing");await sleep(350);
+  $("status").classList.add("on");$("statusText").textContent="Pouring in your memory";
+  memLevel=120; dropWords(text);
+  const api=fetchResults(text);
+  const nWords=Math.min(8,text.split(/\s+/).filter(Boolean).length);
+  await sleep(1050+nWords*110);                       // 1) words land in "your memory"
+  $("statusText").textContent="Mixing the potions";
+  stage.classList.add("pouring"); await sleep(750);   // 2) memory bottle tips over the flask
+  stage.classList.add("flowing"); memLevel=120; dataLevel=95;  //    ...both pour in
+  targetLevel=150; setColors(["#a78bfa","#a7f3d0"]); stirring=true; waveAmp=6;
+  await sleep(900);
+  stage.classList.remove("flowing"); await sleep(250);
+  stage.classList.remove("pouring");                  //    bottles go back
+  $("statusText").textContent="The potion is brewing";
+  stage.classList.add("brewing"); brewingNow=true;    // 3) potion combines + grows/shrinks
+  let i=0;const colorTimer=setInterval(()=>setColors(MIX[i++%MIX.length]),220);
+  const [data]=await Promise.all([api,sleep(1400)]);
+  clearInterval(colorTimer);setColors(["#8b5cf6","#f472b6"]);stage.classList.remove("brewing");brewingNow=false;flaskS=1.3;
+
+  $("status").classList.remove("on");
+  // POP! popcorn bursts out of the neck
+  const f=$("flask").getBoundingClientRect();
+  popcorn(f.left+f.width/2, f.top+f.height*.06);
+  await sleep(500);
+  show(data);
+  stirring=false;waveAmp=3;setTimeout(()=>{targetLevel=210;dataLevel=48;setColors(["#c4b5fd","#a7f3d0"])},2500);
+  go.disabled=false;
+}
+
+function show(data){
+  const res=data.results||[];
+  if(!res.length){$("revealTitle").textContent="The potion fizzled…";stage.classList.add("showing");$("revealYear").textContent=data.error?"the search server isn't running":"try other words";$("tip").style.display="none";$("reveal").classList.add("show");return}
+  const top=res[0];
+  $("tip").style.display="";$("revealTitle").textContent=top.title;$("revealYear").textContent=top.year||"";
+  stage.classList.add("showing");requestAnimationFrame(()=>$("reveal").classList.add("show"));
+  $("plot").textContent=top.plot_snippet||"";
+  $("results").hidden=false;
+
+  const kinds=[["words","bm25"],["meaning","dense"],["judge","rerank"]];
+  const max={};kinds.forEach(([,k])=>{max[k]=Math.max(0,...res.map(r=>(r.scores||{})[k]??0))||1});
+  $("list").innerHTML="";
+  res.forEach((r,i)=>{
+    const el=document.createElement("div");el.className="ticket";
+    const bars=kinds.map(([label,k])=>{const v=(r.scores||{})[k],off=v===undefined;
+      return `<div class="bar ${label} ${off?"off":""}" title="${off?"not added yet":v}">${label}<span><b data-w="${off?0:Math.max(4,v/max[k]*100)}"></b></span></div>`}).join("");
+    el.innerHTML=`<div class="stub"><small>${i?"SEAT":"ADMIT"}</small><b>${i+1}</b></div>
+      <div class="tname">${esc(r.title)}<small>${r.year||""}${i===0?" · TOP PICK":""}</small></div><div class="bars">${bars}</div>`;
+    $("list").appendChild(el);
+    setTimeout(()=>{el.classList.add("show");el.querySelectorAll("b[data-w]").forEach(b=>b.style.width=b.dataset.w+"%")},700+i*130);
+  });
+  $("meta").textContent=data.latency_ms!==undefined?`brewed in ${data.latency_ms} ms`:"";
+}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------- demo data (only when the API is not running) ---------- */
+function demoResults(query){
+  const pool=[
+    {title:"The Lion King",year:1994,plot_snippet:"A young lion prince runs away after his uncle takes the throne, and must return to claim his place.",scores:{bm25:5.4}},
+    {title:"Hamlet",year:1996,plot_snippet:"A Danish prince learns his uncle killed the king and married the queen.",scores:{bm25:5.6}},
+    {title:"Groundhog Day",year:1993,plot_snippet:"A grumpy weatherman wakes up on the same day, over and over.",scores:{bm25:3.1}},
+    {title:"Harry Potter and the Sorcerer's Stone",year:2001,plot_snippet:"An orphan boy learns he is a wizard and goes to a magic school.",scores:{bm25:6.2}},
+    {title:"3 Idiots",year:2009,plot_snippet:"Two friends search for a long-lost college friend and remember their engineering days.",scores:{bm25:4.4}},
+    {title:"Edge of Tomorrow",year:2014,plot_snippet:"A soldier relives the same battle against aliens each time he dies.",scores:{bm25:2.7}},
+  ];
+  const ql=query.toLowerCase(),score=p=>(p.plot_snippet+" "+p.title).toLowerCase().split(/\W+/).filter(w=>w.length>3&&ql.includes(w)).length;
+  return {query,latency_ms:1.2,results:[...pool].sort((a,b)=>score(b)-score(a)).slice(0,5)};
+}
+</script>
+</body>
+</html>

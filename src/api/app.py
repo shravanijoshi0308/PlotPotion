@@ -2,12 +2,15 @@
 The web API.  GET /search?q=...&k=5
 
 Run locally:  uvicorn src.api.app:app --reload
-Then open:    http://127.0.0.1:8000/search?q=animal%20king%20killed%20by%20his%20brother
+Then open:    http://127.0.0.1:8000/          (the PlotPotion page)
+              http://127.0.0.1:8000/search?q=animal%20king%20killed%20by%20his%20brother
 Docs page:    http://127.0.0.1:8000/docs
 """
 import time
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 
 from src.retrievers.base import load_corpus
 from src.retrievers.bm25 import BM25Retriever
@@ -19,9 +22,13 @@ by_id = {d["doc_id"]: d for d in corpus}
 bm25 = BM25Retriever(corpus)
 
 
+INDEX = Path(__file__).resolve().parents[2] / "static" / "index.html"
+
+
 @app.get("/")
 def home():
-    return {"message": "PlotPotion is running. Try /search?q=your+memory"}
+    """The PlotPotion web page."""
+    return FileResponse(INDEX)
 
 
 @app.get("/search")
