@@ -1,9 +1,7 @@
 """
-The common shape every search method must follow.
+Shared helpers.
 
-BM25, dense (meaning) search and the reranker all return the same thing:
-a list of (doc_id, score), best first. Then the API and the eval script
-can use any of them without changes.
+Every search method returns the same shape: a list of (doc_id, score), best first.
 """
 import json
 from pathlib import Path
@@ -17,8 +15,16 @@ def load_corpus(path=CORPUS):
 
 
 def doc_text(doc):
-    """The text we search in: title + plot."""
+    """The text BM25 searches in: title + plot."""
     return f"{doc['title']}. {doc['plot']}"
+
+
+def chunk_plot(doc, size=200, stride=150):
+    """Split a plot into overlapping pieces of ~200 words (title added to each piece).
+    Meaning models only read ~250 words, so chunks let them see the WHOLE plot."""
+    words = doc["plot"].split()
+    starts = range(0, max(len(words) - size + stride, 1), stride)
+    return [f"{doc['title']}. " + " ".join(words[s:s + size]) for s in starts]
 
 
 class Retriever:

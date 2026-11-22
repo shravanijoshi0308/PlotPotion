@@ -18,58 +18,57 @@ pip install -r requirements.txt
 1. Download **Wikipedia Movie Plots** from Kaggle:
    https://www.kaggle.com/datasets/jrobischon/wikipedia-movie-plots
 2. Put `wiki_movie_plots_deduped.csv` into `data/raw/`.
-3. Build the corpus:
 
-```bash
-python src/prepare_data.py --min-year 1980
+## The search chain
+
+```
+question ─┬─> BM25 (words, stemmed) ──────┐
+          │                               ├─> RRF fusion ─> top 30 ─> cross-encoder judge ─> top 5
+          └─> meaning search (plot chunks)┘
 ```
 
-## Run
-
-```bash
-# Try BM25 on one query
-python -m src.retrievers.bm25
-
-# Score BM25 on our questions
-python -m eval.evaluate --queries eval/must_show.jsonl --method bm25
-
-# Start the API, then open http://127.0.0.1:8000/docs
-uvicorn src.api.app:app --reload
-```
-
-## Folders
-
-| Folder | What's inside | Role |
+| Step | File | What it does |
 |---|---|---|
-| `src/prepare_data.py` | CSV → `corpus.jsonl` | B (Data) |
-| `src/retrievers/` | `bm25.py` now; later `dense.py`, `fusion.py`, `rerank.py` | A + B |
-| `src/api/app.py` | FastAPI `GET /search?q=` | A (Framework) |
-| `eval/` | `must_show.jsonl` questions + `evaluate.py` | C (Evaluation) |
+| Clean data | `src/prepare_data.py` | 1980+ movies, removes ~740 duplicate entries (keeps their names as aliases) |
+| Words | `src/retrievers/bm25.py` | BM25 with English stemming (village = villagers) |
+| Meaning | `src/retrievers/dense.py` | all-MiniLM-L6-v2 over ~200-word plot chunks; a movie's score = its best chunk |
+| Mix | `src/pipeline.py` | Reciprocal Rank Fusion of the top 100 from each |
+| Judge | `src/retrievers/rerank.py` | cross-encoder/ms-marco-MiniLM-L-6-v2 re-reads the best chunk of the top 30 |
+| API | `src/api/app.py` | `GET /search?q=...&mode=rerank` with per-component scores and timing |
+| Page | `static/index.html` | the PlotPotion potion UI |
+| Eval | `eval/evaluate.py` | R@1, R@10, R@50, MRR@10 per method and per group |
+
+## Run (in this order)
+
+```bash
+python src/prepare_data.py --min-year 1980     # 1. clean data
+python -m src.retrievers.dense                 # 2. embed plot chunks (one-time, ~10 min)
+python -m src.pipeline "your question"         # 3. try all 4 methods on one question
+python -m eval.evaluate                        # 4. scores for bm25 / dense / hybrid / rerank
+uvicorn src.api.app:app --reload --port 8001   # 5. open http://127.0.0.1:8001/
+```
 
 ## Writing questions (`eval/must_show.jsonl`)
 
 One line per question:
 
 ```json
-{"qid": "m04", "query": "your question", "answer": "Title (Year)", "group": "bm25"}
+{"qid": "m05", "query": "your question", "answer": "Title (Year)", "group": "dense"}
 ```
 
-- `answer` must match the movie's `doc_id` in `corpus.jsonl` exactly: `Title (Year)`.
-  The eval script warns you if it can't find it.
+- `answer` must match a `doc_id` (or alias) in `corpus.jsonl`: `Title (Year)`. A list of names is allowed.
 - `group` = which part should win: `bm25`, `dense` or `rerank`.
 - Write from memory, by hand. No model labelling.
 
 ## Plan
 
-- [x] Repo structure, common retriever interface
-- [x] BM25 baseline + eval script + API
+- [x] Repo structure, BM25 baseline, eval script, API, UI
+- [x] Duplicate removal, stemming
+- [x] Dense retrieval over chunks, RRF fusion, cross-encoder reranker
+- [x] Per-component scores + latency in the API
 - [ ] ToT queries aligned with corpus (`queries.jsonl`, `qrels.jsonl`)
 - [ ] 30 hand-written must-show questions (10 per group)
-- [ ] Dense retrieval (`all-MiniLM-L6-v2`)
-- [ ] Fusion (RRF)
-- [ ] Reranker (`cross-encoder/ms-marco-MiniLM-L-6-v2`)
-- [ ] Per-component scores + latency in API
 - [ ] Deploy to Hugging Face Spaces
 - [ ] Error analysis
 
-Data: Wikipedia Movie Plots (Kaggle), CC BY-NC-SA. Used for a university project.
+Data: Wikipedia Movie Plots (Kaggle), CC BY-SA 4.0. Used for a university project.

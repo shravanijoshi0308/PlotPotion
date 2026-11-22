@@ -1,6 +1,7 @@
 pandas
 numpy
 bm25s
+PyStemmer
 fastapi
 uvicorn
 sentence-transformers

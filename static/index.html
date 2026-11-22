@@ -100,6 +100,10 @@
   .brewbox{margin:8px auto 0;max-width:680px;background:#fff;border:2px solid var(--ink);border-radius:20px;padding:12px;
            box-shadow:6px 6px 0 var(--ink)}
   .row{display:flex;gap:10px}
+  .langrow{display:flex;align-items:center;gap:8px;white-space:nowrap;padding:2px 6px 8px;margin-bottom:6px;border-bottom:1.5px dashed #e2d7c6;
+           font-weight:800;font-size:14px;color:var(--muted)}
+  .langrow select{font:700 14px "Nunito",system-ui,sans-serif;color:var(--ink);background:var(--cream);border:2px solid var(--ink);
+           border-radius:10px;padding:4px 10px;cursor:pointer;max-width:100%}
   textarea{flex:1;resize:none;border:none;outline:none;font:inherit;font-size:18px;color:var(--ink);min-height:54px;align-self:center;padding:6px 8px;background:transparent}
   textarea::placeholder{color:#b5aab9}
   button.go{border:none;cursor:pointer;font:800 17px "Nunito",system-ui,sans-serif;color:var(--ink);padding:0 24px;border-radius:14px;background:var(--gold);
@@ -231,6 +235,10 @@
 
   <!-- ===== input ===== -->
   <div class="brewbox">
+    <div class="langrow">
+      <span>🎬 Show me</span>
+      <select id="lang" aria-label="Which movies to search"></select>
+    </div>
     <div class="row">
       <textarea id="q" placeholder="Pour in what you remember… e.g. an animal king killed by his brother"></textarea>
       <button class="go" id="go">Brew ✨</button>
@@ -265,6 +273,14 @@ function fit(){
 }
 if(innerWidth<700) q.placeholder="What do you remember about the movie?";
 addEventListener("resize",fit); addEventListener("load",fit); document.fonts&&document.fonts.ready.then(fit); fit();
+
+/* ---------- language picker ---------- */
+const LANG_FALLBACK=[["all","All movies"],["indian","Indian (all)"],["bollywood","Bollywood (Hindi)"],["telugu","Telugu"],["tamil","Tamil"],
+  ["malayalam","Malayalam"],["kannada","Kannada"],["bengali","Bengali"],["marathi","Marathi"],["hollywood","Hollywood (American)"],
+  ["british","British"],["east_asian","Japanese, Korean & Chinese"]];
+function fillLangs(list){$("lang").innerHTML=list.map(([k,l,n])=>`<option value="${k}">${l}${n?` (${n.toLocaleString()})`:""}</option>`).join("")}
+fillLangs(LANG_FALLBACK);
+if(location.protocol!=="file:") fetch("/languages").then(r=>r.ok?r.json():null).then(j=>{if(j)fillLangs(j.map(x=>[x.key,x.label,x.count]))}).catch(()=>{});
 
 /* ---------- marquee bulbs ---------- */
 ["bulbsTop","bulbsBottom"].forEach(id=>{for(let i=0;i<16;i++){const b=document.createElement("i");b.style.animationDelay=(i*0.1)+"s";$(id).appendChild(b)}});
@@ -352,7 +368,7 @@ function cornLoop(){
 async function fetchResults(query){
   const ourServer=["localhost","127.0.0.1"].includes(location.hostname)||location.hostname.endsWith(".hf.space");
   if(location.protocol==="file:") return demoResults(query);   // preview only
-  try{const r=await fetch(`/search?q=${encodeURIComponent(query)}&k=5`);if(!r.ok)throw 0;return await r.json()}
+  try{const r=await fetch(`/search?q=${encodeURIComponent(query)}&k=5&lang=${encodeURIComponent($("lang").value||"all")}`);if(!r.ok)throw 0;return await r.json()}
   catch{return ourServer?{results:[],error:true}:demoResults(query)}
 }
 async function brew(){
@@ -403,7 +419,7 @@ function show(data){
     const bars=kinds.map(([label,k])=>{const v=(r.scores||{})[k],off=v===undefined;
       return `<div class="bar ${label} ${off?"off":""}" title="${off?"not added yet":v}">${label}<span><b data-w="${off?0:Math.max(4,v/max[k]*100)}"></b></span></div>`}).join("");
     el.innerHTML=`<div class="stub"><small>${i?"SEAT":"ADMIT"}</small><b>${i+1}</b></div>
-      <div class="tname">${esc(r.title)}<small>${r.year||""}${i===0?" · TOP PICK":""}</small></div><div class="bars">${bars}</div>`;
+      <div class="tname">${esc(r.title)}<small>${r.year||""}${r.origin?" · "+esc(String(r.origin).replace("_"," ")):""}${i===0?" · TOP PICK":""}</small></div><div class="bars">${bars}</div>`;
     $("list").appendChild(el);
     setTimeout(()=>{el.classList.add("show");el.querySelectorAll("b[data-w]").forEach(b=>b.style.width=b.dataset.w+"%")},700+i*130);
   });
