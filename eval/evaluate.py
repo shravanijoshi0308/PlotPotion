@@ -9,7 +9,7 @@ group = which part SHOULD win: "bm25", "dense" or "rerank".
 Prints Recall@10, Recall@50, MRR@10 overall and per group,
 plus the questions where the right movie was not in the top 10 (read these! course rule 5).
 
-Run:  python -m eval.evaluate --queries eval/must_show.jsonl --method bm25
+Run:  python -m eval.evaluate --method bm25      (or dense, hybrid)
 """
 import argparse
 import json
@@ -28,7 +28,17 @@ def get_retriever(name):
     if name == "bm25":
         from src.retrievers.bm25 import BM25Retriever
         return BM25Retriever()
-    # Later: "dense", "hybrid", "hybrid_rerank"
+    if name == "dense":
+        from src.retrievers.dense import DenseRetriever
+        return DenseRetriever()
+    if name == "hybrid":
+        from src.retrievers.base import load_corpus
+        from src.retrievers.bm25 import BM25Retriever
+        from src.retrievers.dense import DenseRetriever
+        from src.retrievers.hybrid import HybridRetriever
+        corpus = load_corpus()
+        return HybridRetriever(BM25Retriever(corpus), DenseRetriever(corpus))
+    # Later: "hybrid_rerank"
     raise ValueError(f"Unknown method: {name}")
 
 

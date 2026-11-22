@@ -18,6 +18,11 @@ class BM25Retriever(Retriever):
         self.model = bm25s.BM25()
         self.model.index(tokens, show_progress=False)
 
+    def scores_all(self, query):
+        """BM25 score of the query for every movie (used by hybrid search)."""
+        toks = bm25s.tokenize(query, stopwords="en", return_ids=False, show_progress=False)[0]
+        return self.model.get_scores(toks)
+
     def search(self, query, k=10):
         k = min(k, len(self.ids))
         q = bm25s.tokenize(query, stopwords="en", show_progress=False)
