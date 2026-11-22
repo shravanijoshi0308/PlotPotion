@@ -1,0 +1,6 @@
+pandas
+bm25s
+fastapi
+uvicorn
+# later (Step 5-6):
+# sentence-transformers

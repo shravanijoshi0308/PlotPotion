@@ -1,0 +1,3 @@
+{"qid": "m01", "query": "movie where a boy goes to Hogwarts school of witchcraft", "answer": "Harry Potter and the Philosopher's Stone (2001)", "group": "bm25"}
+{"qid": "m02", "query": "a weatherman keeps waking up on the same day again and again", "answer": "Groundhog Day (1993)", "group": "dense"}
+{"qid": "m03", "query": "animal king who was killed by his brother", "answer": "The Lion King (1994)", "group": "rerank"}
